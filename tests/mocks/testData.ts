@@ -91,3 +91,41 @@ export function createMockEagleItem(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+/**
+ * Create a mock sidecar MediaItem.
+ */
+export function createMockSidecarItem(
+  overrides: Partial<MediaItem> = {}
+): MediaItem {
+  return createMockMediaItem({
+    name: 'test-photo',
+    ext: 'xmp',
+    type: 'other',
+    isSidecar: true,
+    hasSidecar: false,
+    hasExif: false,
+    width: 0,
+    height: 0,
+    size: 2048,
+    filePath: '/tmp/test-eagle-library/test-photo.xmp',
+    ...overrides,
+  });
+}
+
+/**
+ * Create a mock Eagle sidecar item (raw from eagle.item.get).
+ */
+export function createMockEagleSidecarItem(overrides: Record<string, unknown> = {}) {
+  return createMockEagleItem({
+    name: 'eagle-photo',
+    ext: 'xmp',
+    filePath: '/tmp/test-eagle-library/eagle-photo.xmp',
+    fileURL: 'file:///tmp/test-eagle-library/eagle-photo.xmp',
+    width: 0,
+    height: 0,
+    size: 1024,
+    tags: [],
+    ...overrides,
+  });
+}
