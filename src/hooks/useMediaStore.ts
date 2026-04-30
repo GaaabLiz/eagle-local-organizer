@@ -397,10 +397,8 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       const pct = Math.round(((i + 1) / items.length) * 100);
       op.updateProgress(pct, `${item.name}.xmp`);
 
-      // Yield to keep UI responsive
-      if ((i + 1) % 10 === 0) {
-        await new Promise<void>((r) => setTimeout(r, 0));
-      }
+      // Yield every iteration to keep UI responsive
+      await new Promise<void>((r) => setTimeout(r, 0));
     }
 
     const msg = errors > 0
