@@ -23,6 +23,10 @@ export async function getItemsByTag(tagName: string): Promise<EagleItem[]> {
   return getEagle().item.get({ tags: [tagName] });
 }
 
+export async function getAllItems(): Promise<EagleItem[]> {
+  return getEagle().item.getAll();
+}
+
 export async function getAllFolders(): Promise<EagleFolder[]> {
   return getEagle().folder.getAll();
 }

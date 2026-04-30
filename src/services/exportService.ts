@@ -207,6 +207,20 @@ export async function exportItems(
           duplicateCount++;
           break;
       }
+
+      // Export linked sidecar alongside the media
+      if (item.hasSidecar && item.sidecarId) {
+        const sidecar = items.find((s) => s.id === item.sidecarId);
+        if (sidecar) {
+          const sidecarResult = exportSingleFile(sidecar, destDir, settings.dryRun);
+          const sidecarResolved =
+            sidecarResult instanceof Promise ? await sidecarResult : sidecarResult;
+          exportedFiles.push(sidecarResolved);
+          if (sidecarResolved.status === 'success') successCount++;
+          else if (sidecarResolved.status === 'error') errorCount++;
+          else if (sidecarResolved.status === 'duplicate') duplicateCount++;
+        }
+      }
     }
 
     // Small yield to keep UI responsive
