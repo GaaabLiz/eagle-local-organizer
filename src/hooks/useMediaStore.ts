@@ -17,7 +17,7 @@ import {
 import { logInfo, logError, logWarn } from '../services/logService';
 import { useOperationStore } from './useOperationStore';
 
-const BATCH_SIZE = 50; // items per tick to keep UI responsive
+const BATCH_SIZE = 200; // items per tick for progress reporting
 
 export interface SidecarConflict {
   mediaItem: MediaItem;
@@ -67,9 +67,10 @@ function attachCachedPreview(item: MediaItem): MediaItem {
 }
 
 /**
- * Process raw Eagle items in batches, yielding to the event loop
- * between batches so the UI stays responsive.
- * Reports progress via the operation store.
+ * Process raw Eagle items in batches for progress reporting.
+ * Converts all items and adds them to the store in a single operation
+ * to avoid repeated array spreads and re-renders.
+ * Supports cancellation via the operation store.
  */
 async function processItemsInBatches(
   rawItems: unknown[],
@@ -79,23 +80,32 @@ async function processItemsInBatches(
   const total = rawItems.length;
   op.startOperation('loading', `Loading ${total} items...`);
 
-  for (let i = 0; i < total; i += BATCH_SIZE) {
-    const batch = rawItems.slice(i, i + BATCH_SIZE);
-    const mediaItems = batch.map((item) => {
-      const media = eagleItemToMediaItem(item as Parameters<typeof eagleItemToMediaItem>[0]);
-      return attachCachedPreview(media);
-    });
+  const allMediaItems: MediaItem[] = [];
 
-    addItems(mediaItems);
+  for (let i = 0; i < total; i += BATCH_SIZE) {
+    // Check cancellation
+    if (useOperationStore.getState().isCancelled) {
+      if (allMediaItems.length > 0) addItems(allMediaItems);
+      op.completeOperation(`Stopped — ${allMediaItems.length} of ${total} items loaded`);
+      return;
+    }
+
+    const batch = rawItems.slice(i, i + BATCH_SIZE);
+    for (const item of batch) {
+      const media = eagleItemToMediaItem(item as Parameters<typeof eagleItemToMediaItem>[0]);
+      allMediaItems.push(attachCachedPreview(media));
+    }
 
     const processed = Math.min(i + BATCH_SIZE, total);
     const pct = Math.round((processed / total) * 100);
     op.updateProgress(pct, `${processed}/${total}`);
 
-    // Yield to the event loop so the UI can repaint
+    // Yield to UI so progress bar updates
     await new Promise<void>((r) => setTimeout(r, 0));
   }
 
+  // Single state update — one render for all items
+  addItems(allMediaItems);
   op.completeOperation(`${total} items loaded`);
 }
 

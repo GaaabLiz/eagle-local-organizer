@@ -4,6 +4,7 @@ import type { OperationType } from '../types';
 interface OperationState {
   type: OperationType;
   isRunning: boolean;
+  isCancelled: boolean;
   progress: number;
   currentFileName: string;
   message: string;
@@ -12,12 +13,14 @@ interface OperationState {
   startOperation: (type: OperationType, message: string) => void;
   updateProgress: (progress: number, fileName: string) => void;
   completeOperation: (completionMessage: string) => void;
+  cancelOperation: () => void;
   reset: () => void;
 }
 
 export const useOperationStore = create<OperationState>((set) => ({
   type: 'idle',
   isRunning: false,
+  isCancelled: false,
   progress: 0,
   currentFileName: '',
   message: '',
@@ -27,6 +30,7 @@ export const useOperationStore = create<OperationState>((set) => ({
     set({
       type,
       isRunning: true,
+      isCancelled: false,
       progress: 0,
       currentFileName: '',
       message,
@@ -41,6 +45,7 @@ export const useOperationStore = create<OperationState>((set) => ({
   completeOperation: (completionMessage) => {
     set({
       isRunning: false,
+      isCancelled: false,
       progress: 100,
       currentFileName: '',
       completionMessage,
@@ -56,10 +61,15 @@ export const useOperationStore = create<OperationState>((set) => ({
     }, 4000);
   },
 
+  cancelOperation: () => {
+    set({ isCancelled: true });
+  },
+
   reset: () => {
     set({
       type: 'idle',
       isRunning: false,
+      isCancelled: false,
       progress: 0,
       currentFileName: '',
       message: '',
