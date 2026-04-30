@@ -9,6 +9,7 @@ import { InfoDialog } from './components/Dialogs/InfoDialog';
 import { MetadataDialog } from './components/Dialogs/MetadataDialog';
 import { PreviewDialog } from './components/Dialogs/PreviewDialog';
 import { ConfirmDialog } from './components/Dialogs/ConfirmDialog';
+import { SidecarConflictDialog } from './components/Dialogs/SidecarConflictDialog';
 import { useMediaStore } from './hooks/useMediaStore';
 import { useSettingsStore } from './hooks/useSettingsStore';
 import { useHistoryStore } from './hooks/useHistoryStore';
@@ -31,7 +32,10 @@ type DialogState =
   | { type: 'confirm-export' }
   | { type: 'confirm-clear' }
   | { type: 'confirm-cache' }
-  | { type: 'confirm-reset' };
+  | { type: 'confirm-reset' }
+  | { type: 'confirm-generate-sidecars' }
+  | { type: 'confirm-remove-sidecars' }
+  | { type: 'sidecar-conflict' };
 
 const App: React.FC = () => {
   const [dialog, setDialog] = useState<DialogState>({ type: 'none' });
@@ -48,6 +52,11 @@ const App: React.FC = () => {
   const fetchItemsByFolder = useMediaStore((s) => s.fetchItemsByFolder);
   const fetchItemsByTag = useMediaStore((s) => s.fetchItemsByTag);
   const refreshItems = useMediaStore((s) => s.refreshItems);
+  const generateSidecars = useMediaStore((s) => s.generateSidecars);
+  const removeSidecars = useMediaStore((s) => s.removeSidecars);
+  const sidecarConflicts = useMediaStore((s) => s.sidecarConflicts);
+  const resolveSidecarConflict = useMediaStore((s) => s.resolveSidecarConflict);
+  const clearSidecarConflicts = useMediaStore((s) => s.clearSidecarConflicts);
 
   const settings = useSettingsStore((s) => s.settings);
   const saveSettings = useSettingsStore((s) => s.saveSettings);
@@ -62,20 +71,29 @@ const App: React.FC = () => {
   // Check if there are selected items in Eagle (best-effort check)
   const [hasEagleSelection, setHasEagleSelection] = useState(true);
 
-  const handleAddSelected = useCallback(async () => {
-    await fetchSelectedItems();
+  const handleAddSelected = useCallback(async (checkForSidecars: boolean) => {
+    await fetchSelectedItems(checkForSidecars);
+    if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+      setDialog({ type: 'sidecar-conflict' });
+    }
   }, [fetchSelectedItems]);
 
   const handleAddByFolder = useCallback(
-    async (folderId: string, folderName: string) => {
-      await fetchItemsByFolder(folderId, folderName);
+    async (folderId: string, folderName: string, checkForSidecars: boolean) => {
+      await fetchItemsByFolder(folderId, folderName, checkForSidecars);
+      if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+        setDialog({ type: 'sidecar-conflict' });
+      }
     },
     [fetchItemsByFolder]
   );
 
   const handleAddByTag = useCallback(
-    async (tagName: string) => {
-      await fetchItemsByTag(tagName);
+    async (tagName: string, checkForSidecars: boolean) => {
+      await fetchItemsByTag(tagName, checkForSidecars);
+      if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+        setDialog({ type: 'sidecar-conflict' });
+      }
     },
     [fetchItemsByTag]
   );
@@ -132,6 +150,42 @@ const App: React.FC = () => {
     window.location.reload();
   }, [clearAll, closeDialog]);
 
+  const handleGenerateSidecars = useCallback(async () => {
+    closeDialog();
+    operation.startOperation('sidecar', 'Generating sidecars...');
+    try {
+      await generateSidecars(settings.importSidecars);
+      const count = useMediaStore.getState().items.filter((i) => i.isSidecar).length;
+      operation.completeOperation(`Generated ${count} sidecar file(s)`);
+    } catch (err) {
+      operation.completeOperation(
+        `Sidecar generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
+    }
+  }, [closeDialog, operation, generateSidecars, settings.importSidecars]);
+
+  const handleRemoveSidecars = useCallback(() => {
+    closeDialog();
+    removeSidecars();
+    operation.completeOperation('Sidecars removed from list');
+  }, [closeDialog, removeSidecars, operation]);
+
+  const handleResolveSidecarConflict = useCallback(
+    (mediaId: string, chosenSidecarId: string | null) => {
+      if (chosenSidecarId) {
+        resolveSidecarConflict(mediaId, chosenSidecarId);
+      } else {
+        // Skip — just remove this conflict
+        resolveSidecarConflict(mediaId, '');
+      }
+      // Close dialog if no more conflicts
+      if (useMediaStore.getState().sidecarConflicts.length === 0) {
+        closeDialog();
+      }
+    },
+    [resolveSidecarConflict, closeDialog]
+  );
+
   const handleOpenInEagle = useCallback((id: string) => {
     openInEagle(id);
   }, []);
@@ -166,6 +220,8 @@ const App: React.FC = () => {
         onClearCache={() => setDialog({ type: 'confirm-cache' })}
         onResetPlugin={() => setDialog({ type: 'confirm-reset' })}
         onInfoClick={() => setDialog({ type: 'info' })}
+        onGenerateSidecars={() => setDialog({ type: 'confirm-generate-sidecars' })}
+        onRemoveSidecars={() => setDialog({ type: 'confirm-remove-sidecars' })}
       />
 
       <MediaTable
@@ -270,6 +326,38 @@ const App: React.FC = () => {
         onConfirm={handleResetPlugin}
         onCancel={closeDialog}
         danger
+      />
+
+      <ConfirmDialog
+        open={dialog.type === 'confirm-generate-sidecars'}
+        title="Generate Sidecars"
+        message={`Generate XMP sidecar files for ${items.filter((i) => !i.isSidecar).length} media item(s)?`}
+        detail={
+          settings.importSidecars
+            ? 'Generated sidecars will also be imported into Eagle.'
+            : 'Sidecars will be added to the plugin list only.'
+        }
+        onConfirm={handleGenerateSidecars}
+        onCancel={closeDialog}
+      />
+
+      <ConfirmDialog
+        open={dialog.type === 'confirm-remove-sidecars'}
+        title="Remove Sidecars"
+        message="Remove all sidecar files from the plugin list?"
+        detail="This only removes sidecar items from the plugin list. Files in Eagle are not affected."
+        onConfirm={handleRemoveSidecars}
+        onCancel={closeDialog}
+      />
+
+      <SidecarConflictDialog
+        open={dialog.type === 'sidecar-conflict'}
+        conflicts={sidecarConflicts}
+        onResolve={handleResolveSidecarConflict}
+        onClose={() => {
+          clearSidecarConflicts();
+          closeDialog();
+        }}
       />
     </>
   );
