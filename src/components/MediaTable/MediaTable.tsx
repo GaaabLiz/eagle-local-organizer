@@ -8,6 +8,7 @@ import {
   type SortingState,
   type RowSelectionState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Image,
   Video,
@@ -24,7 +25,6 @@ import {
 } from 'lucide-react';
 import type { MediaItem } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
-import { getCreationDate } from '../../services/metadataService';
 import { getPrimaryDestination } from '../../services/exportService';
 import { useSettingsStore } from '../../hooks/useSettingsStore';
 
@@ -161,7 +161,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         size: 70,
       }),
       columnHelper.accessor(
-        (row) => getCreationDate(row),
+        (row) => row.exifDate || row.importedAt || 0,
         {
           id: 'creationDate',
           header: 'Date',
@@ -239,6 +239,17 @@ export const MediaTable: React.FC<MediaTableProps> = ({
     enableRowSelection: true,
   });
 
+  const { rows } = table.getRowModel();
+
+  // Virtualization for large lists
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 40, // row height in px
+    overscan: 20,
+  });
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, item: MediaItem) => {
       e.preventDefault();
@@ -275,7 +286,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   }
 
   return (
-    <div className="media-table-container">
+    <div className="media-table-container" ref={tableContainerRef}>
       <table className="media-table">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -335,21 +346,36 @@ export const MediaTable: React.FC<MediaTableProps> = ({
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              className={
-                selectedIds.has(row.original.id) ? 'selected' : ''
-              }
-              onContextMenu={(e) => handleContextMenu(e, row.original)}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
+          {rowVirtualizer.getVirtualItems().length > 0 && (
+            <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }}>
+              <td colSpan={columns.length} style={{ padding: 0, border: 'none' }} />
             </tr>
-          ))}
+          )}
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            return (
+              <tr
+                key={row.id}
+                className={
+                  selectedIds.has(row.original.id) ? 'selected' : ''
+                }
+                onContextMenu={(e) => handleContextMenu(e, row.original)}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+          {rowVirtualizer.getVirtualItems().length > 0 && (
+            <tr style={{
+              height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end)}px`
+            }}>
+              <td colSpan={columns.length} style={{ padding: 0, border: 'none' }} />
+            </tr>
+          )}
         </tbody>
       </table>
 

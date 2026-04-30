@@ -1,4 +1,5 @@
 import React from 'react';
+import { Square } from 'lucide-react';
 import { ProgressBar } from '../common/ProgressBar';
 import { pluralize } from '../../utils/formatUtils';
 
@@ -10,6 +11,8 @@ interface StatusBarProps {
   currentFileName: string;
   message: string;
   completionMessage: string;
+  canStop: boolean;
+  onStop: () => void;
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({
@@ -20,6 +23,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   currentFileName,
   message,
   completionMessage,
+  canStop,
+  onStop,
 }) => {
   if (itemCount === 0 && !isRunning && !completionMessage) return null;
 
@@ -39,12 +44,22 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       <div className="statusbar__right">
         {isRunning && (
           <div className="statusbar__progress">
-            <ProgressBar progress={progress} />
             <span className="statusbar__progress-text">
               {message}
               {currentFileName ? ` ${currentFileName}` : ''}
               {progress > 0 ? ` ${progress}%` : ''}
             </span>
+            <ProgressBar progress={progress} />
+            {canStop && (
+              <button
+                className="statusbar__stop-btn"
+                onClick={onStop}
+                title="Stop operation"
+                aria-label="Stop"
+              >
+                <Square size={12} fill="currentColor" />
+              </button>
+            )}
           </div>
         )}
 
