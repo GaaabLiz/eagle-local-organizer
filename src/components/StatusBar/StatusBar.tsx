@@ -21,7 +21,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   message,
   completionMessage,
 }) => {
-  if (itemCount === 0) return null;
+  if (itemCount === 0 && !isRunning && !completionMessage) return null;
 
   return (
     <div className="statusbar">
