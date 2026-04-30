@@ -72,30 +72,63 @@ const App: React.FC = () => {
   const [hasEagleSelection, setHasEagleSelection] = useState(true);
 
   const handleAddSelected = useCallback(async (checkForSidecars: boolean) => {
-    await fetchSelectedItems(checkForSidecars);
-    if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
-      setDialog({ type: 'sidecar-conflict' });
+    closeDialog();
+    operation.startOperation('loading', 'Loading selected items...');
+    try {
+      await fetchSelectedItems(checkForSidecars);
+      if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+        operation.completeOperation('Items loaded — resolve sidecar conflicts');
+        setDialog({ type: 'sidecar-conflict' });
+      } else {
+        operation.completeOperation('Items loaded successfully');
+      }
+    } catch (err) {
+      operation.completeOperation(
+        `Failed to load items: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
-  }, [fetchSelectedItems]);
+  }, [fetchSelectedItems, closeDialog, operation]);
 
   const handleAddByFolder = useCallback(
     async (folderId: string, folderName: string, checkForSidecars: boolean) => {
-      await fetchItemsByFolder(folderId, folderName, checkForSidecars);
-      if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
-        setDialog({ type: 'sidecar-conflict' });
+      closeDialog();
+      operation.startOperation('loading', `Loading items from folder...`);
+      try {
+        await fetchItemsByFolder(folderId, folderName, checkForSidecars);
+        if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+          operation.completeOperation('Items loaded — resolve sidecar conflicts');
+          setDialog({ type: 'sidecar-conflict' });
+        } else {
+          operation.completeOperation('Items loaded successfully');
+        }
+      } catch (err) {
+        operation.completeOperation(
+          `Failed to load items: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
       }
     },
-    [fetchItemsByFolder]
+    [fetchItemsByFolder, closeDialog, operation]
   );
 
   const handleAddByTag = useCallback(
     async (tagName: string, checkForSidecars: boolean) => {
-      await fetchItemsByTag(tagName, checkForSidecars);
-      if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
-        setDialog({ type: 'sidecar-conflict' });
+      closeDialog();
+      operation.startOperation('loading', `Loading items by tag...`);
+      try {
+        await fetchItemsByTag(tagName, checkForSidecars);
+        if (checkForSidecars && useMediaStore.getState().sidecarConflicts.length > 0) {
+          operation.completeOperation('Items loaded — resolve sidecar conflicts');
+          setDialog({ type: 'sidecar-conflict' });
+        } else {
+          operation.completeOperation('Items loaded successfully');
+        }
+      } catch (err) {
+        operation.completeOperation(
+          `Failed to load items: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
       }
     },
-    [fetchItemsByTag]
+    [fetchItemsByTag, closeDialog, operation]
   );
 
   const handleExport = useCallback(async () => {
@@ -129,8 +162,10 @@ const App: React.FC = () => {
   }, [items, settings, operation, addSession, closeDialog]);
 
   const handleUpdate = useCallback(async () => {
+    operation.startOperation('update', 'Updating items...');
     try {
       await refreshItems();
+      operation.completeOperation('Items updated successfully');
     } catch {
       operation.completeOperation('Update failed');
     }
@@ -152,11 +187,9 @@ const App: React.FC = () => {
 
   const handleGenerateSidecars = useCallback(async () => {
     closeDialog();
-    operation.startOperation('sidecar', 'Generating sidecars...');
+    // generateSidecars already manages the operation store internally
     try {
       await generateSidecars(settings.importSidecars);
-      const count = useMediaStore.getState().items.filter((i) => i.isSidecar).length;
-      operation.completeOperation(`Generated ${count} sidecar file(s)`);
     } catch (err) {
       operation.completeOperation(
         `Sidecar generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -166,8 +199,12 @@ const App: React.FC = () => {
 
   const handleRemoveSidecars = useCallback(() => {
     closeDialog();
-    removeSidecars();
-    operation.completeOperation('Sidecars removed from list');
+    operation.startOperation('sidecar', 'Removing sidecars...');
+    // Use setTimeout to let the dialog close first before processing
+    setTimeout(() => {
+      removeSidecars();
+      operation.completeOperation('Sidecars removed from list');
+    }, 0);
   }, [closeDialog, removeSidecars, operation]);
 
   const handleResolveSidecarConflict = useCallback(
