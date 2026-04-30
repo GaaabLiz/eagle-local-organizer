@@ -60,10 +60,17 @@ export function parseExifDate(dateStr: string | undefined): number | undefined {
 
 /**
  * Get the best creation date for a media item.
- * Priority: EXIF DateTimeOriginal → Eagle importedAt → file stat birthtime
+ * Priority: EXIF DateTimeOriginal (on-demand) → Eagle importedAt → file stat birthtime
  */
 export function getCreationDate(item: MediaItem): number {
   if (item.exifDate && item.exifDate > 0) return item.exifDate;
+  // Lazy EXIF extraction: only read EXIF when actually needed (e.g., during export)
+  try {
+    const exifDate = extractExifCreationDate(item.filePath);
+    if (exifDate && exifDate > 0) return exifDate;
+  } catch {
+    // EXIF extraction failed, use fallbacks
+  }
   if (item.importedAt && item.importedAt > 0) return item.importedAt;
   try {
     const stat = fs.statSync(item.filePath);
