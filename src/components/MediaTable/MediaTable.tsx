@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Aperture,
+  FileText,
   FolderOpen,
   Trash2,
   Eye,
@@ -193,19 +194,32 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         }
       ),
       columnHelper.accessor('hasExif', {
-        header: 'EXIF',
-        cell: (info) => (
-          <span
-            className={`media-table__exif-icon ${
-              info.getValue() ? 'media-table__exif-icon--has-exif' : ''
-            }`}
-            title={info.getValue() ? 'Has EXIF data' : 'No EXIF data'}
-          >
-            <Aperture size={14} />
-          </span>
-        ),
+        id: 'metadata',
+        header: 'Meta',
+        cell: (info) => {
+          const item = info.row.original;
+          if (item.isSidecar) return null;
+          const hasSidecar = !!item.hasSidecar;
+          const hasExif = !!info.getValue();
+          return (
+            <span style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span
+                className={`media-table__exif-icon ${hasSidecar ? 'media-table__exif-icon--has-exif' : ''}`}
+                title={hasSidecar ? 'Sidecar linked: Yes' : 'Sidecar linked: No'}
+              >
+                <FileText size={13} />
+              </span>
+              <span
+                className={`media-table__exif-icon ${hasExif ? 'media-table__exif-icon--has-exif' : ''}`}
+                title={hasExif ? 'Exif metadata: Yes' : 'Exif metadata: No'}
+              >
+                <Aperture size={13} />
+              </span>
+            </span>
+          );
+        },
         sortingFn: 'basic',
-        size: 44,
+        size: 60,
       }),
     ],
     [allSelected, selectedIds, settings, onDeselectAll, onSelectAll, onToggleSelect, onPreview]
@@ -278,7 +292,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                               ? 'col-date'
                               : header.id === 'destination'
                                 ? 'col-destination'
-                                : header.id === 'hasExif'
+                                : header.id === 'metadata'
                                   ? 'col-exif'
                                   : ''
                   }

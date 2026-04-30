@@ -9,7 +9,6 @@ import {
   Settings,
   MoreHorizontal,
   X,
-  Link,
   FilePlus,
   FileX,
   RotateCcw,
@@ -34,6 +33,8 @@ interface TitleBarProps {
   onClearCache: () => void;
   onResetPlugin: () => void;
   onInfoClick: () => void;
+  onGenerateSidecars: () => void;
+  onRemoveSidecars: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -49,6 +50,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onClearCache,
   onResetPlugin,
   onInfoClick,
+  onGenerateSidecars,
+  onRemoveSidecars,
 }) => {
   const [, setForceUpdate] = useState(0);
   // Force re-render hack for dropdown close
@@ -155,26 +158,34 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
         {/* Sidecar */}
         <Dropdown
-          disabled={true}
+          disabled={disabled || !hasItems}
           trigger={
             <button
               className="titlebar__btn titlebar__btn--icon-only"
-              disabled={true}
-              title="Sidecar options (coming soon)"
+              disabled={disabled || !hasItems}
+              title="Sidecar options"
             >
               <FileText size={14} />
             </button>
           }
         >
-          <button className="dropdown__item dropdown__item--disabled">
-            <Link size={12} />
-            <span className="dropdown__item-text">Link eagle sidecars</span>
-          </button>
-          <button className="dropdown__item dropdown__item--disabled">
+          <button
+            className="dropdown__item"
+            onClick={() => {
+              onGenerateSidecars();
+              closeDropdowns();
+            }}
+          >
             <FilePlus size={12} />
             <span className="dropdown__item-text">Generate sidecars</span>
           </button>
-          <button className="dropdown__item dropdown__item--disabled">
+          <button
+            className="dropdown__item"
+            onClick={() => {
+              onRemoveSidecars();
+              closeDropdowns();
+            }}
+          >
             <FileX size={12} />
             <span className="dropdown__item-text">Remove sidecars</span>
           </button>

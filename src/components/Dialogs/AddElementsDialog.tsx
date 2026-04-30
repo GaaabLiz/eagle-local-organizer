@@ -7,9 +7,9 @@ import { getAllFolders, getAllTags, flattenFolders } from '../../services/eagleA
 interface AddElementsDialogProps {
   open: boolean;
   onClose: () => void;
-  onAddSelected: () => void;
-  onAddByFolder: (folderId: string, folderName: string) => void;
-  onAddByTag: (tagName: string) => void;
+  onAddSelected: (checkForSidecars: boolean) => void;
+  onAddByFolder: (folderId: string, folderName: string, checkForSidecars: boolean) => void;
+  onAddByTag: (tagName: string, checkForSidecars: boolean) => void;
   hasSelectedItems: boolean;
 }
 
@@ -24,6 +24,7 @@ export const AddElementsDialog: React.FC<AddElementsDialogProps> = ({
   const [mode, setMode] = useState<AddMode>('selected');
   const [selectedFolderId, setSelectedFolderId] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
+  const [checkForSidecars, setCheckForSidecars] = useState(false);
   const [folders, setFolders] = useState<Array<{ value: string; label: string }>>([]);
   const [tags, setTags] = useState<Array<{ value: string; label: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -75,15 +76,15 @@ export const AddElementsDialog: React.FC<AddElementsDialogProps> = ({
   const handleAdd = () => {
     switch (mode) {
       case 'selected':
-        onAddSelected();
+        onAddSelected(checkForSidecars);
         break;
       case 'folder': {
         const folder = folders.find((f) => f.value === selectedFolderId);
-        onAddByFolder(selectedFolderId, folder?.label || '');
+        onAddByFolder(selectedFolderId, folder?.label || '', checkForSidecars);
         break;
       }
       case 'tag':
-        onAddByTag(selectedTag);
+        onAddByTag(selectedTag, checkForSidecars);
         break;
     }
     onClose();
@@ -169,6 +170,35 @@ export const AddElementsDialog: React.FC<AddElementsDialogProps> = ({
               )}
             </div>
           )}
+
+          <div className="form-group" style={{ marginTop: 'var(--spacing-md)' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--spacing-sm)',
+                fontSize: 'var(--font-size-sm)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={checkForSidecars}
+                onChange={(e) => setCheckForSidecars(e.target.checked)}
+              />
+              Check for sidecar files
+            </label>
+            <p
+              style={{
+                fontSize: 'var(--font-size-xs)',
+                color: 'var(--color-text-tertiary)',
+                marginTop: '4px',
+                marginLeft: '22px',
+              }}
+            >
+              Search Eagle library for matching .xmp sidecar files and import them together
+            </p>
+          </div>
         </div>
         <div className="dialog__footer">
           <button className="btn btn--secondary" onClick={onClose}>
