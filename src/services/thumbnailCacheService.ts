@@ -6,6 +6,9 @@ import type { MediaItem } from '../types';
 const PREVIEW_MAX_SIZE = 800; // max dimension for preview images
 const CACHE_DIR_NAME = 'preview-cache';
 
+// In-memory set of cached item IDs (avoids repeated fs.existsSync calls)
+let cachedItemIds: Set<string> | null = null;
+
 function getCacheDir(): string {
   const pluginPath = getPluginPath();
   const base = pluginPath || path.join(
@@ -26,16 +29,35 @@ function getCacheFilePath(itemId: string): string {
 }
 
 /**
- * Check if a cached preview already exists for an item.
+ * Load all cached file names into memory for fast lookup.
  */
-export function getCachedPreview(itemId: string): string | undefined {
-  const cachePath = getCacheFilePath(itemId);
+function loadCacheIndex(): Set<string> {
+  if (cachedItemIds) return cachedItemIds;
+  cachedItemIds = new Set();
   try {
-    if (fs.existsSync(cachePath)) {
-      return cachePath;
+    const dir = getCacheDir();
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir);
+      for (const f of files) {
+        if (f.endsWith('.jpg')) {
+          cachedItemIds.add(f.slice(0, -4)); // remove .jpg
+        }
+      }
     }
   } catch {
-    // ignore
+    // ignore — will be empty set
+  }
+  return cachedItemIds;
+}
+
+/**
+ * Check if a cached preview already exists for an item.
+ * Uses in-memory index for O(1) lookup — no filesystem calls per item.
+ */
+export function getCachedPreview(itemId: string): string | undefined {
+  const index = loadCacheIndex();
+  if (index.has(itemId)) {
+    return getCacheFilePath(itemId);
   }
   return undefined;
 }
@@ -102,6 +124,8 @@ export function generatePreview(item: MediaItem): Promise<string | undefined> {
                   const cachePath = path.join(dir, `${item.id}.jpg`);
                   const buffer = Buffer.from(reader.result as ArrayBuffer);
                   fs.writeFileSync(cachePath, buffer);
+                  // Update in-memory index
+                  loadCacheIndex().add(item.id);
                   resolve(cachePath);
                 } catch {
                   resolve(undefined);
@@ -150,6 +174,7 @@ export function clearPreviewCache(): void {
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+    cachedItemIds = null; // reset index
   } catch {
     // silent
   }

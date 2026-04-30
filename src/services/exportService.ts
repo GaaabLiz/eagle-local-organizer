@@ -173,7 +173,8 @@ function exportSingleFile(
 export async function exportItems(
   items: MediaItem[],
   settings: PluginSettings,
-  onProgress: ProgressCallback
+  onProgress: ProgressCallback,
+  isCancelled?: () => boolean
 ): Promise<ExportSession> {
   const exportedFiles: ExportedFile[] = [];
   const total = items.length;
@@ -182,6 +183,9 @@ export async function exportItems(
   let duplicateCount = 0;
 
   for (let i = 0; i < items.length; i++) {
+    // Check cancellation
+    if (isCancelled?.()) break;
+
     const item = items[i];
     onProgress(i, total, item.name);
 
@@ -269,11 +273,30 @@ export function getPrimaryDestination(
   folderStructure: FolderStructure,
   exportDestination: string
 ): string {
-  const paths = computeDestinationPaths(item, {
-    exportDestination,
-    folderStructure,
-    dryRun: false,
-    importSidecars: false,
-  });
-  return paths[0] || exportDestination;
+  const base = exportDestination;
+  // Use in-memory date only (no I/O) for display purposes
+  const creationDate = item.exifDate || item.importedAt || Date.now();
+
+  switch (folderStructure) {
+    case 'year-month': {
+      const sub = path.join(getYear(creationDate), getMonth(creationDate));
+      return path.join(base, sub);
+    }
+    case 'year-month-day': {
+      const sub = path.join(
+        getYear(creationDate),
+        getMonth(creationDate),
+        getDay(creationDate)
+      );
+      return path.join(base, sub);
+    }
+    case 'tag': {
+      if (item.tags.length === 0) return path.join(base, 'Untagged');
+      return path.join(base, sanitizeFilename(item.tags[0]));
+    }
+    case 'none':
+      return base;
+    default:
+      return base;
+  }
 }
