@@ -4,18 +4,32 @@ import {
   getSelectedItems,
   getItemsByFolder,
   getItemsByTag,
+  getAllItems,
   eagleItemToMediaItem,
 } from '../services/eagleApiService';
 import { getCachedPreview, generatePreview } from '../services/thumbnailCacheService';
+import {
+  findSidecarForItem,
+  writeSidecarFile,
+  getSidecarTempDir,
+  type SidecarCandidate,
+} from '../services/sidecarService';
+import { logInfo, logError, logWarn } from '../services/logService';
 import { useOperationStore } from './useOperationStore';
 
 const BATCH_SIZE = 50; // items per tick to keep UI responsive
+
+export interface SidecarConflict {
+  mediaItem: MediaItem;
+  candidates: SidecarCandidate[];
+}
 
 interface MediaState {
   items: MediaItem[];
   selectedIds: Set<string>;
   addSource: AddSource | null;
   isLoading: boolean;
+  sidecarConflicts: SidecarConflict[];
 
   addItems: (newItems: MediaItem[]) => void;
   removeItem: (id: string) => void;
@@ -28,10 +42,17 @@ interface MediaState {
   setItems: (items: MediaItem[]) => void;
   updateItem: (id: string, patch: Partial<MediaItem>) => void;
 
-  fetchSelectedItems: () => Promise<void>;
-  fetchItemsByFolder: (folderId: string, folderName: string) => Promise<void>;
-  fetchItemsByTag: (tagName: string) => Promise<void>;
+  fetchSelectedItems: (checkForSidecars?: boolean) => Promise<void>;
+  fetchItemsByFolder: (folderId: string, folderName: string, checkForSidecars?: boolean) => Promise<void>;
+  fetchItemsByTag: (tagName: string, checkForSidecars?: boolean) => Promise<void>;
   refreshItems: () => Promise<void>;
+
+  // Sidecar operations
+  removeSidecars: () => void;
+  linkSidecarToItem: (mediaId: string, sidecarId: string) => void;
+  generateSidecars: (importToEagle: boolean) => Promise<void>;
+  resolveSidecarConflict: (mediaId: string, chosenSidecarId: string | null) => void;
+  clearSidecarConflicts: () => void;
 }
 
 /**
@@ -79,6 +100,87 @@ async function processItemsInBatches(
 }
 
 /**
+ * Search Eagle for sidecar files matching the loaded media items.
+ * Adds found sidecars and links them. Returns conflicts for user resolution.
+ */
+async function findAndLinkSidecars(
+  getItems: () => MediaItem[],
+  addItems: (items: MediaItem[]) => void,
+  updateItem: (id: string, patch: Partial<MediaItem>) => void,
+): Promise<SidecarConflict[]> {
+  const op = useOperationStore.getState();
+  const mediaItems = getItems().filter((i) => !i.isSidecar && i.type !== 'other');
+
+  if (mediaItems.length === 0) return [];
+
+  op.startOperation('sidecar', 'Searching for sidecar files...');
+  logInfo(`Searching sidecars for ${mediaItems.length} media items`);
+
+  let allEagleItems: unknown[];
+  try {
+    allEagleItems = await getAllItems();
+  } catch (err) {
+    logError('Failed to fetch all Eagle items for sidecar search', err);
+    op.completeOperation('Sidecar search failed: could not access Eagle library');
+    return [];
+  }
+
+  const conflicts: SidecarConflict[] = [];
+  let linked = 0;
+
+  for (let i = 0; i < mediaItems.length; i++) {
+    const item = mediaItems[i];
+    const candidates = findSidecarForItem(
+      item,
+      allEagleItems as Array<{ id: string; name: string; ext: string; filePath: string; size: number; modifiedAt: number; importedAt: number }>
+    );
+
+    if (candidates.length === 1) {
+      // Single match — auto-link
+      const sc = candidates[0];
+      const sidecarMedia: MediaItem = {
+        id: sc.id,
+        name: sc.name,
+        ext: sc.ext,
+        filePath: sc.filePath,
+        tags: [],
+        folders: [],
+        width: 0,
+        height: 0,
+        size: sc.size,
+        importedAt: sc.modifiedAt,
+        modifiedAt: sc.modifiedAt,
+        type: 'other',
+        hasExif: false,
+        isSidecar: true,
+        sidecarId: item.id,
+      };
+      addItems([sidecarMedia]);
+      updateItem(item.id, { hasSidecar: true, sidecarId: sc.id });
+      linked++;
+    } else if (candidates.length > 1) {
+      // Multiple matches — user must choose
+      conflicts.push({ mediaItem: item, candidates });
+      logWarn(`Multiple sidecar candidates for ${item.name}.${item.ext}: ${candidates.length} found`);
+    }
+
+    if ((i + 1) % 20 === 0 || i === mediaItems.length - 1) {
+      const pct = Math.round(((i + 1) / mediaItems.length) * 100);
+      op.updateProgress(pct, `${i + 1}/${mediaItems.length}`);
+      await new Promise<void>((r) => setTimeout(r, 0));
+    }
+  }
+
+  const msg = conflicts.length > 0
+    ? `Found ${linked} sidecars, ${conflicts.length} need resolution`
+    : `${linked} sidecars linked`;
+  op.completeOperation(msg);
+  logInfo(msg);
+
+  return conflicts;
+}
+
+/**
  * Generate preview thumbnails for items in the background.
  * Runs AFTER items are displayed — doesn't block the UI.
  */
@@ -123,6 +225,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   selectedIds: new Set<string>(),
   addSource: null,
   isLoading: false,
+  sidecarConflicts: [],
 
   addItems: (newItems) => {
     set((state) => {
@@ -137,15 +240,22 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     set((state) => {
       const newSelected = new Set(state.selectedIds);
       newSelected.delete(id);
-      return {
-        items: state.items.filter((i) => i.id !== id),
-        selectedIds: newSelected,
-      };
+      // Also unlink sidecar relationships
+      const removedItem = state.items.find((i) => i.id === id);
+      let updatedItems = state.items.filter((i) => i.id !== id);
+      if (removedItem?.sidecarId) {
+        updatedItems = updatedItems.map((i) =>
+          i.id === removedItem.sidecarId
+            ? { ...i, sidecarId: undefined, hasSidecar: false }
+            : i
+        );
+      }
+      return { items: updatedItems, selectedIds: newSelected };
     });
   },
 
   clearAll: () => {
-    set({ items: [], selectedIds: new Set(), addSource: null });
+    set({ items: [], selectedIds: new Set(), addSource: null, sidecarConflicts: [] });
   },
 
   setSelected: (ids) => {
@@ -190,12 +300,177 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }));
   },
 
-  fetchSelectedItems: async () => {
+  // --- Sidecar operations ---
+
+  removeSidecars: () => {
+    set((state) => {
+      const sidecarIds = new Set(
+        state.items.filter((i) => i.isSidecar).map((i) => i.id)
+      );
+      // Remove sidecars and unlink from media
+      const updatedItems = state.items
+        .filter((i) => !i.isSidecar)
+        .map((i) =>
+          i.hasSidecar && i.sidecarId && sidecarIds.has(i.sidecarId)
+            ? { ...i, hasSidecar: false, sidecarId: undefined }
+            : i
+        );
+      const newSelected = new Set(state.selectedIds);
+      for (const id of sidecarIds) {
+        newSelected.delete(id);
+      }
+      logInfo(`Removed ${sidecarIds.size} sidecar(s) from plugin`);
+      return { items: updatedItems, selectedIds: newSelected };
+    });
+  },
+
+  linkSidecarToItem: (mediaId, sidecarId) => {
+    set((state) => ({
+      items: state.items.map((item) => {
+        if (item.id === mediaId) {
+          return { ...item, hasSidecar: true, sidecarId };
+        }
+        if (item.id === sidecarId) {
+          return { ...item, sidecarId: mediaId };
+        }
+        return item;
+      }),
+    }));
+    logInfo(`Linked sidecar ${sidecarId} to media ${mediaId}`);
+  },
+
+  generateSidecars: async (importToEagle) => {
+    const op = useOperationStore.getState();
+    const items = get().items.filter(
+      (i) => !i.isSidecar && (i.type === 'photo' || i.type === 'video') && !i.hasSidecar
+    );
+
+    if (items.length === 0) {
+      op.startOperation('sidecar', 'No items need sidecars');
+      op.completeOperation('All media items already have sidecars');
+      return;
+    }
+
+    op.startOperation('sidecar', `Generating ${items.length} sidecars...`);
+    logInfo(`Generating sidecars for ${items.length} items (importToEagle: ${importToEagle})`);
+
+    const outputDir = importToEagle ? undefined : getSidecarTempDir();
+    let generated = 0;
+    let errors = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const result = writeSidecarFile(item, outputDir);
+
+      if (result) {
+        // Create a MediaItem for the sidecar and add it to the store
+        const sidecarItem: MediaItem = {
+          id: `sidecar-${item.id}-${Date.now()}`,
+          name: item.name,
+          ext: 'xmp',
+          filePath: result.filePath,
+          tags: [],
+          folders: [],
+          width: 0,
+          height: 0,
+          size: 0, // Will be updated
+          importedAt: Date.now(),
+          modifiedAt: Date.now(),
+          type: 'other',
+          hasExif: false,
+          isSidecar: true,
+          sidecarId: item.id,
+        };
+
+        get().addItems([sidecarItem]);
+        get().updateItem(item.id, { hasSidecar: true, sidecarId: sidecarItem.id });
+        generated++;
+
+        if (importToEagle) {
+          // TODO: Import to Eagle when API supports it
+          logWarn(`Eagle import not yet implemented for: ${result.fileName}`);
+        }
+      } else {
+        errors++;
+      }
+
+      const pct = Math.round(((i + 1) / items.length) * 100);
+      op.updateProgress(pct, `${item.name}.xmp`);
+
+      // Yield to keep UI responsive
+      if ((i + 1) % 10 === 0) {
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+    }
+
+    const msg = errors > 0
+      ? `Generated ${generated} sidecars, ${errors} failed`
+      : `Generated ${generated} sidecars successfully`;
+    op.completeOperation(msg);
+    logInfo(msg);
+  },
+
+  resolveSidecarConflict: (mediaId, chosenSidecarId) => {
+    if (chosenSidecarId) {
+      // Find the candidate and add it
+      const conflict = get().sidecarConflicts.find((c) => c.mediaItem.id === mediaId);
+      if (conflict) {
+        const chosen = conflict.candidates.find((c) => c.id === chosenSidecarId);
+        if (chosen) {
+          const sidecarMedia: MediaItem = {
+            id: chosen.id,
+            name: chosen.name,
+            ext: chosen.ext,
+            filePath: chosen.filePath,
+            tags: [],
+            folders: [],
+            width: 0,
+            height: 0,
+            size: chosen.size,
+            importedAt: chosen.modifiedAt,
+            modifiedAt: chosen.modifiedAt,
+            type: 'other',
+            hasExif: false,
+            isSidecar: true,
+            sidecarId: mediaId,
+          };
+          get().addItems([sidecarMedia]);
+          get().updateItem(mediaId, { hasSidecar: true, sidecarId: chosen.id });
+          logInfo(`Conflict resolved: linked ${chosen.name}.${chosen.ext} to ${mediaId}`);
+        }
+      }
+    }
+
+    // Remove the resolved conflict
+    set((state) => ({
+      sidecarConflicts: state.sidecarConflicts.filter((c) => c.mediaItem.id !== mediaId),
+    }));
+  },
+
+  clearSidecarConflicts: () => {
+    set({ sidecarConflicts: [] });
+  },
+
+  // --- Fetch operations ---
+
+  fetchSelectedItems: async (checkForSidecars = false) => {
     set({ isLoading: true });
     try {
       const eagleItems = await getSelectedItems();
       await processItemsInBatches(eagleItems, get().addItems);
       get().setAddSource({ mode: 'selected' });
+
+      if (checkForSidecars) {
+        const conflicts = await findAndLinkSidecars(
+          () => get().items,
+          get().addItems,
+          get().updateItem,
+        );
+        if (conflicts.length > 0) {
+          set({ sidecarConflicts: conflicts });
+        }
+      }
+
       generatePreviewsInBackground(
         () => get().items,
         get().updateItem,
@@ -205,12 +480,24 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
   },
 
-  fetchItemsByFolder: async (folderId, folderName) => {
+  fetchItemsByFolder: async (folderId, folderName, checkForSidecars = false) => {
     set({ isLoading: true });
     try {
       const eagleItems = await getItemsByFolder(folderId);
       await processItemsInBatches(eagleItems, get().addItems);
       get().setAddSource({ mode: 'folder', folderId, folderName });
+
+      if (checkForSidecars) {
+        const conflicts = await findAndLinkSidecars(
+          () => get().items,
+          get().addItems,
+          get().updateItem,
+        );
+        if (conflicts.length > 0) {
+          set({ sidecarConflicts: conflicts });
+        }
+      }
+
       generatePreviewsInBackground(
         () => get().items,
         get().updateItem,
@@ -220,12 +507,24 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
   },
 
-  fetchItemsByTag: async (tagName) => {
+  fetchItemsByTag: async (tagName, checkForSidecars = false) => {
     set({ isLoading: true });
     try {
       const eagleItems = await getItemsByTag(tagName);
       await processItemsInBatches(eagleItems, get().addItems);
       get().setAddSource({ mode: 'tag', tagName });
+
+      if (checkForSidecars) {
+        const conflicts = await findAndLinkSidecars(
+          () => get().items,
+          get().addItems,
+          get().updateItem,
+        );
+        if (conflicts.length > 0) {
+          set({ sidecarConflicts: conflicts });
+        }
+      }
+
       generatePreviewsInBackground(
         () => get().items,
         get().updateItem,
