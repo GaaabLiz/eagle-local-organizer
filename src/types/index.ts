@@ -6,7 +6,7 @@ export type MediaType = 'photo' | 'video' | 'other';
 
 export type ExportFileStatus = 'success' | 'error' | 'duplicate' | 'skipped';
 
-export type OperationType = 'export' | 'sidecar' | 'update' | 'idle';
+export type OperationType = 'export' | 'sidecar' | 'update' | 'loading' | 'idle';
 
 export interface MediaItem {
   id: string;
@@ -14,6 +14,7 @@ export interface MediaItem {
   ext: string;
   filePath: string;
   thumbnailPath?: string;
+  cachedPreviewPath?: string;
   tags: string[];
   folders: string[];
   width: number;
