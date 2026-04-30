@@ -27,6 +27,12 @@ export interface MediaItem {
   exifModifiedDate?: number;
   destinationPath?: string;
   hasExif: boolean;
+  /** If this item is a sidecar file */
+  isSidecar?: boolean;
+  /** ID of the linked sidecar (on media) or linked media (on sidecar) */
+  sidecarId?: string;
+  /** Whether this media item has a linked sidecar in the plugin */
+  hasSidecar?: boolean;
 }
 
 export interface ExportedFile {
@@ -75,6 +81,8 @@ export interface AddSource {
   tagName?: string;
 }
 
+export const SIDECAR_EXTENSIONS = new Set(['xmp']);
+
 export const PHOTO_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif', 'svg',
   'ico', 'heic', 'heif', 'avif', 'raw', 'cr2', 'nef', 'arw', 'dng',
@@ -91,4 +99,8 @@ export function getMediaType(ext: string): MediaType {
   if (PHOTO_EXTENSIONS.has(lower)) return 'photo';
   if (VIDEO_EXTENSIONS.has(lower)) return 'video';
   return 'other';
+}
+
+export function isSidecarExtension(ext: string): boolean {
+  return SIDECAR_EXTENSIONS.has(ext.toLowerCase());
 }
