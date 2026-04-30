@@ -15,6 +15,7 @@ import { useHistoryStore } from './hooks/useHistoryStore';
 import { useOperationStore } from './hooks/useOperationStore';
 import { exportItems } from './services/exportService';
 import { clearCache, resetPlugin } from './services/storageService';
+import { clearPreviewCache } from './services/thumbnailCacheService';
 import { openInEagle } from './services/eagleApiService';
 import { formatProgress } from './utils/formatUtils';
 import type { MediaItem, ExportSession, PluginSettings } from './types';
@@ -110,10 +111,8 @@ const App: React.FC = () => {
   }, [items, settings, operation, addSession, closeDialog]);
 
   const handleUpdate = useCallback(async () => {
-    operation.startOperation('update', 'Updating...');
     try {
       await refreshItems();
-      operation.completeOperation('Items updated');
     } catch {
       operation.completeOperation('Update failed');
     }
@@ -121,11 +120,13 @@ const App: React.FC = () => {
 
   const handleClearCache = useCallback(() => {
     clearCache();
+    clearPreviewCache();
     closeDialog();
   }, [closeDialog]);
 
   const handleResetPlugin = useCallback(() => {
     resetPlugin();
+    clearPreviewCache();
     clearAll();
     closeDialog();
     window.location.reload();
