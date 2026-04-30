@@ -142,13 +142,16 @@ const App: React.FC = () => {
         (current, total, fileName) => {
           const pct = formatProgress(current, total);
           operation.updateProgress(pct, fileName);
-        }
+        },
+        () => useOperationStore.getState().isCancelled
       );
 
+      const wasCancelled = useOperationStore.getState().isCancelled;
       addSession(session);
 
-      const msg =
-        session.errorCount > 0
+      const msg = wasCancelled
+        ? `Export stopped — ${session.successCount} file(s) exported`
+        : session.errorCount > 0
           ? `Export completed with ${session.errorCount} error(s)`
           : settings.dryRun
             ? 'Dry-run completed'
@@ -281,6 +284,8 @@ const App: React.FC = () => {
         currentFileName={operation.currentFileName}
         message={operation.message}
         completionMessage={operation.completionMessage}
+        canStop={operation.isRunning && (operation.type === 'loading' || operation.type === 'export')}
+        onStop={operation.cancelOperation}
       />
 
       {/* Dialogs */}
