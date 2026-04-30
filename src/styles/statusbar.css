@@ -71,6 +71,26 @@
   animation: fadeIn 200ms ease;
 }
 
+/* Stop button */
+.statusbar__stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-danger, #e53e3e);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.statusbar__stop-btn:hover {
+  background: rgba(229, 62, 62, 0.12);
+}
+
 /* Dropdown menus */
 .dropdown {
   position: absolute;
