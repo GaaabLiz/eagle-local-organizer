@@ -87,7 +87,6 @@ export const AddElementsDialog: React.FC<AddElementsDialogProps> = ({
         onAddByTag(selectedTag, checkForSidecars);
         break;
     }
-    onClose();
   };
 
   return (

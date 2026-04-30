@@ -147,12 +147,16 @@ export const MediaTable: React.FC<MediaTableProps> = ({
       }),
       columnHelper.accessor('type', {
         header: 'Type',
-        cell: (info) => (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <TypeIcon type={info.getValue()} />
-            {info.getValue()}
-          </span>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          const displayType = row.isSidecar ? 'sidecar' : info.getValue();
+          return (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <TypeIcon type={info.getValue()} />
+              {displayType}
+            </span>
+          );
+        },
         sortingFn: 'alphanumeric',
         size: 70,
       }),
@@ -376,16 +380,18 @@ export const MediaTable: React.FC<MediaTableProps> = ({
             <Eye size={12} />
             <span className="dropdown__item-text">Open in Eagle</span>
           </button>
-          <button
-            className="dropdown__item"
-            onClick={() => {
-              onViewMetadata(contextMenu.item);
-              setContextMenu(null);
-            }}
-          >
-            <FileSearch size={12} />
-            <span className="dropdown__item-text">View metadata</span>
-          </button>
+          {!contextMenu.item.isSidecar && (
+            <button
+              className="dropdown__item"
+              onClick={() => {
+                onViewMetadata(contextMenu.item);
+                setContextMenu(null);
+              }}
+            >
+              <FileSearch size={12} />
+              <span className="dropdown__item-text">View metadata</span>
+            </button>
+          )}
         </div>
       )}
     </div>
