@@ -1,0 +1,86 @@
+/* ============================
+   Title Bar
+   ============================ */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 var(--spacing-sm);
+  background-color: var(--color-titlebar-bg);
+  border-bottom: 1px solid var(--color-border-light);
+  -webkit-app-region: drag;
+  gap: var(--spacing-xs);
+}
+
+.titlebar__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  padding-left: var(--spacing-sm);
+}
+
+.titlebar__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  position: relative;
+  white-space: nowrap;
+  height: 28px;
+}
+
+.titlebar__btn:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.titlebar__btn:active:not(:disabled) {
+  background-color: var(--color-bg-active);
+}
+
+.titlebar__btn--icon-only {
+  padding: var(--spacing-xs);
+  width: 28px;
+  justify-content: center;
+}
+
+.titlebar__btn--primary {
+  color: var(--color-accent);
+}
+
+.titlebar__btn--primary:hover:not(:disabled) {
+  background-color: var(--color-bg-selected);
+  color: var(--color-accent-hover);
+}
+
+.titlebar__btn--close {
+  color: var(--color-text-tertiary);
+}
+
+.titlebar__btn--close:hover:not(:disabled) {
+  background-color: var(--color-error);
+  color: var(--color-text-inverse);
+}
+
+.titlebar__separator {
+  width: 1px;
+  height: 16px;
+  background-color: var(--color-border-light);
+  margin: 0 2px;
+}

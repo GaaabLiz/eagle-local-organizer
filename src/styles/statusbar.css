@@ -1,0 +1,232 @@
+/* ============================
+   Status Bar
+   ============================ */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 var(--spacing-md);
+  background-color: var(--color-statusbar-bg);
+  border-top: 1px solid var(--color-border-light);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  gap: var(--spacing-md);
+}
+
+.statusbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.statusbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.statusbar__count {
+  white-space: nowrap;
+}
+
+/* Progress section */
+.statusbar__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.statusbar__progress-bar {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--color-bg-tertiary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.statusbar__progress-fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  border-radius: 2px;
+  transition: width 200ms ease;
+}
+
+.statusbar__progress-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}
+
+/* Completion message */
+.statusbar__completion {
+  color: var(--color-success);
+  font-weight: 500;
+  animation: fadeIn 200ms ease;
+}
+
+/* Dropdown menus */
+.dropdown {
+  position: absolute;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+  min-width: 180px;
+  padding: var(--spacing-xs) 0;
+  animation: slideIn 150ms ease;
+}
+
+.dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+.dropdown__item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.dropdown__item:active {
+  background-color: var(--color-bg-active);
+}
+
+.dropdown__item--danger {
+  color: var(--color-error);
+}
+
+.dropdown__item--disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.dropdown__item--disabled:hover {
+  background: none;
+}
+
+.dropdown__separator {
+  height: 1px;
+  background-color: var(--color-border-light);
+  margin: var(--spacing-xs) 0;
+}
+
+.dropdown__item-text {
+  flex: 1;
+}
+
+.dropdown__item-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* Context menu */
+.context-menu {
+  position: fixed;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+  min-width: 200px;
+  padding: var(--spacing-xs) 0;
+  animation: fadeIn 100ms ease;
+}
+
+/* Toggle */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.toggle__track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: var(--color-bg-tertiary);
+  position: relative;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggle__track--active {
+  background-color: var(--color-accent);
+}
+
+.toggle__thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.toggle__track--active .toggle__thumb {
+  transform: translateX(16px);
+}
+
+.toggle__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+/* Searchable combobox */
+.searchable-select {
+  position: relative;
+}
+
+.searchable-select__input {
+  width: 100%;
+  height: 32px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+}
+
+.searchable-select__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  z-index: var(--z-dropdown);
+}
+
+.searchable-select__option {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background var(--transition-fast);
+}
+
+.searchable-select__option:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.searchable-select__option--selected {
+  background-color: var(--color-bg-selected);
+  color: var(--color-accent);
+}
