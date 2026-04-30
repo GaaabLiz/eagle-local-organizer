@@ -25,6 +25,7 @@
   "homepage": "https://github.com/GaaabLiz/eagle-local-organizer#readme",
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.24",
     "exifreader": "^4.38.1",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
